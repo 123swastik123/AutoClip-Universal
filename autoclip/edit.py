@@ -84,9 +84,13 @@ def reframe(prep_path, plan, out_id):
     }
 
     if stats.get("split_screen") or stats.get("mode") == "blur_fill" or "[0:v]" in filter_str:
-        mt.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", prep_path,
-                "-filter_complex", filter_str, "-r", str(config.FPS_OUT), "-c:v", "libx264",
-                "-preset", "ultrafast", "-crf", "17", out])
+        cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", prep_path,
+               "-filter_complex", filter_str]
+        if "[reframe_out]" in filter_str:
+            cmd += ["-map", "[reframe_out]"]
+        cmd += ["-r", str(config.FPS_OUT), "-c:v", "libx264",
+                "-preset", "ultrafast", "-crf", "17", out]
+        mt.run(cmd)
     else:
         mt.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", prep_path,
                 "-vf", filter_str, "-r", str(config.FPS_OUT), "-c:v", "libx264",
