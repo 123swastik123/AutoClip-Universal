@@ -1,0 +1,7 @@
+# reproducible deps (used via uv run --python 3.12 --with <pkg>)
+yt-dlp
+faster-whisper
+opencv-python<5
+numpy
+playwright
+pillow
