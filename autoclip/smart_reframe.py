@@ -370,7 +370,7 @@ def generate_reframe_filter(tracking_info):
             f"[in_g]crop={game_crop_w}:{game_crop_h}:{x_game}:{y_game},scale=1080:960:flags=lanczos,setsar=1[top_game];"
             f"[in_f]crop={face_crop_w}:{face_crop_h}:{x_face}:{y_face},scale=1080:960:flags=lanczos,setsar=1[bot_face];"
             f"[top_game][bot_face]vstack=inputs=2[stacked_raw];"
-            f"[stacked_raw]drawbox=x=0:y=958:w=1080:h=4:color=0xFFD200@0.90:t=fill,setsar=1,setdar=9/16[reframe_out]"
+            f"[stacked_raw]drawbox=x=0:y=958:w=1080:h=4:color=0xFFD200@0.90:t=fill,setsar=1,setdar=9/16,format=yuv420p"
         )
         return filter_str, {"split_screen": True, "face_cx": face_cx, "face_cy": face_cy}
 

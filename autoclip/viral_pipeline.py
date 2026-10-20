@@ -507,8 +507,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 )
 
                 # 6. Combined Filter Complex (Strict 9:16 SAR 1:1)
+                reframe_chain = reframe_vf if reframe_vf.rstrip().endswith("[reframe_out]") else f"{reframe_vf}[reframe_out]"
                 filter_complex = (
-                    f"{reframe_vf};"
+                    f"{reframe_chain};"
                     f"[reframe_out]{hook_motion},eq=contrast=1.12:brightness=0.01:saturation=1.22,unsharp=3:3:0.6:3:3:0.0[graded];"
                     f"[graded][1:v]overlay=0:0[overlaid];"
                     f"{broll_filter};"
