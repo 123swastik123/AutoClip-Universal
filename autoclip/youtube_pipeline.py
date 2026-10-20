@@ -160,37 +160,58 @@ def get_bgutil_args():
 
 
 def get_youtube_info(url):
-    """Retrieve video metadata without downloading full stream."""
-    cmd = [
-        get_python_exe(), "-m", "yt_dlp",
-        "--no-warnings", "--skip-download",
-        "--print", "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s\t%(thumbnail)s",
-    ] + get_yt_cookie_args() + [url]
-    try:
-        r = subprocess.run(cmd, env=get_yt_env(), capture_output=True, text=True, timeout=30)
-        if r.returncode == 0 and r.stdout.strip():
-            parts = r.stdout.strip().split("\t")
-            vid_id = parts[0] if len(parts) > 0 else "yt_video"
-            title = parts[1] if len(parts) > 1 else "YouTube Video"
-            uploader = parts[2] if len(parts) > 2 else "Creator"
-            dur_str = parts[3] if len(parts) > 3 else "0"
-            thumb = parts[4] if len(parts) > 4 else ""
-            try:
-                duration = float(dur_str)
-            except ValueError:
-                duration = 0.0
-            return {
-                "id": vid_id,
-                "title": title,
-                "uploader": uploader,
-                "duration": duration,
-                "thumbnail": thumb
-            }
-    except Exception as e:
-        print(f"[YouTube Pipeline] Warning: metadata fetch failed: {e}")
-    
-    # Fallback regex extraction of video id
+    """Retrieve video metadata with typo resolution and auto-fallback."""
+    def _fetch_meta(target_url):
+        cmd = [
+            get_python_exe(), "-m", "yt_dlp",
+            "--no-warnings", "--skip-download",
+            "--print", "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s\t%(thumbnail)s",
+        ] + get_yt_cookie_args() + [target_url]
+        try:
+            r = subprocess.run(cmd, env=get_yt_env(), capture_output=True, text=True, timeout=30)
+            if r.returncode == 0 and r.stdout.strip():
+                parts = r.stdout.strip().split("\t")
+                vid_id = parts[0] if len(parts) > 0 else "yt_video"
+                title = parts[1] if len(parts) > 1 else "YouTube Video"
+                uploader = parts[2] if len(parts) > 2 else "Creator"
+                dur_str = parts[3] if len(parts) > 3 else "0"
+                thumb = parts[4] if len(parts) > 4 else ""
+                try:
+                    duration = float(dur_str)
+                except ValueError:
+                    duration = 0.0
+                return {
+                    "id": vid_id,
+                    "title": title,
+                    "uploader": uploader,
+                    "duration": duration,
+                    "thumbnail": thumb,
+                    "canonical_url": target_url
+                }
+        except Exception as e:
+            print(f"[YouTube Pipeline] Warning: metadata fetch failed for {target_url}: {e}")
+        return None
+
+    meta = _fetch_meta(url)
+    if meta:
+        return meta
+
+    # Typo recovery: Check for common character confusions in YouTube ID (e.g. 'O' vs '0')
     m = re.search(r'(?:v=|\/|youtu\.be\/)([0-9A-Za-z_-]{11})', url)
+    if m:
+        orig_id = m.group(1)
+        candidate_ids = []
+        if "O" in orig_id:
+            candidate_ids.append(orig_id.replace("O", "0"))
+        if "0" in orig_id:
+            candidate_ids.append(orig_id.replace("0", "O"))
+        for alt_id in candidate_ids:
+            alt_url = url.replace(orig_id, alt_id)
+            alt_meta = _fetch_meta(alt_url)
+            if alt_meta:
+                print(f"[YouTube Pipeline] Corrected URL ID typo: {orig_id} -> {alt_id}")
+                return alt_meta
+
     vid_id = m.group(1) if m else f"yt_{uuid.uuid4().hex[:8]}"
     return {
         "id": vid_id,
@@ -1182,6 +1203,7 @@ def render_5_ranked_shorts(clips, src_video, words, band, video_info, job_id, pr
             "rank": rank,
             "src_path": src_video,
             "src": os.path.basename(src_video),
+            "url": video_info.get("canonical_url") or video_info.get("webpage_url") or (f"https://www.youtube.com/watch?v={video_info.get('id')}" if video_info.get('id') else None),
             "t0": t0,
             "t1": t1,
             "kind": "landscape",
@@ -1444,6 +1466,9 @@ def clean_all_completed_source_media(current_vid_id=None):
         if f.endswith("_source.mp4") or f.endswith(".wav") or f.endswith(".part") or f.endswith(".ytdl") or "_source." in f:
             fp = os.path.join(DOWNLOADS_DIR, f)
             try:
+                age_sec = time.time() - os.path.getmtime(fp)
+                if age_sec < 2700:
+                    continue
                 sz = os.path.getsize(fp)
                 if os.path.isfile(fp):
                     os.remove(fp)

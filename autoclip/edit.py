@@ -16,6 +16,38 @@ def prep(plan, out_id):
     out = _p(f"{out_id}_prep.mp4")
     if os.path.exists(out):
         os.remove(out)
+
+    # Resiliency guard: Check if source file exists
+    if not os.path.exists(src):
+        src_dir = os.path.dirname(src)
+        src_name = os.path.basename(src)
+        alt_names = []
+        if "O" in src_name:
+            alt_names.append(src_name.replace("O", "0"))
+        if "0" in src_name:
+            alt_names.append(src_name.replace("0", "O"))
+        found = False
+        for alt in alt_names:
+            alt_path = os.path.join(src_dir, alt)
+            if os.path.exists(alt_path):
+                src = alt_path
+                plan["src_path"] = alt_path
+                found = True
+                print(f"[Edit Prep] Auto-recovered alternate source file: {alt_path}")
+                break
+
+        if not found:
+            stream_url = plan.get("url") or (f"https://www.youtube.com/watch?v={plan.get('id', '')}" if plan.get('id') else None)
+            if stream_url:
+                try:
+                    from . import long_stream
+                    print(f"[Edit Prep] Source video missing ({src}). Surgically fetching segment {plan['t0']:.1f}s - {plan['t1']:.1f}s from {stream_url}...")
+                    dl_ok = long_stream.download_surgical_video(stream_url, plan["t0"], plan["t1"], out)
+                    if dl_ok and os.path.exists(out) and os.path.getsize(out) > 1000:
+                        return out
+                except Exception as s_err:
+                    print(f"[Edit Prep] Surgical fallback download failed: {s_err}")
+
     mt.prep_cut(src, plan["t0"], plan["t1"], out, fps=config.FPS_OUT)
     return out
 
