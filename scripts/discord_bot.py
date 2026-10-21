@@ -616,6 +616,64 @@ class VideoIntakeChoiceView(discord.ui.View):
         self.btn_split.callback = self.on_toggle_split
         self.add_item(self.btn_split)
 
+        # Row 2: Mascot Narrator Button (Asfan Animation Style)
+        self.btn_narrator = discord.ui.Button(
+            label="🎙️ Include Narrator (Asfan Mascot)",
+            style=discord.ButtonStyle.success,
+            custom_id="intake_narrator_mascot",
+            row=2
+        )
+        self.btn_narrator.callback = self.on_narrator_clicked
+        self.add_item(self.btn_narrator)
+
+    async def on_narrator_clicked(self, interaction: discord.Interaction):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+        except Exception:
+            pass
+        PENDING_INTAKE.pop(self.channel.id, None)
+        status_msg = await reply_safely(
+            interaction.message or self.channel,
+            content=f"🎙️ **Synthesizing Asfan-Style Mascot Narrator Short...**\n• Character: Animated Host Mascot (w/ speaking bounce)\n• Voice: ElevenLabs-grade Human Speech (`am_adam`)\n• Creator: **{self.creator.upper()}**\n⏳ Downloading clip & assembling 9:16 Short..."
+        )
+        from autoclip import narrator_engine
+        out_dir = Path("C:/Users/swastik/Downloads")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = str(out_dir / f"{self.creator.title()}_Narrator_Short_{int(time.time())}.mp4")
+
+        # Slice 30s using yt-dlp
+        temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
+        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, self.url]
+        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
+
+        if not os.path.exists(temp_src):
+            dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
+            await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+
+        try:
+            loop = asyncio.get_event_loop()
+            res = await loop.run_in_executor(
+                None,
+                lambda: narrator_engine.render_mascot_commentary_short(
+                    clip_path=temp_src,
+                    output_path=out_file,
+                    creator_slug=self.creator,
+                    script_preset_idx=0
+                )
+            )
+            if os.path.exists(res):
+                await status_msg.edit(content=f"✅ **Asfan-Style Mascot Narrator Short Ready!**\n📁 File: `{res}`")
+                await send_video_safely(
+                    self.channel,
+                    res,
+                    caption=f"🎙️ **{self.creator.upper()} Mascot Narrator Short (Asfan Animation Style):**"
+                )
+            else:
+                await status_msg.edit(content="❌ Failed to render mascot narrator short.")
+        except Exception as ex:
+            await status_msg.edit(content=f"❌ Error during mascot narrator render: {ex}")
+
     async def on_normal_clicked(self, interaction: discord.Interaction):
         try:
             if not interaction.response.is_done():
@@ -707,6 +765,64 @@ class LongStreamIntakeView(discord.ui.View):
         )
         self.btn_split.callback = self.on_toggle_split
         self.add_item(self.btn_split)
+
+        # Row 2: Mascot Narrator Button (Asfan Animation Style)
+        self.btn_narrator = discord.ui.Button(
+            label="🎙️ Include Narrator (Asfan Mascot)",
+            style=discord.ButtonStyle.success,
+            custom_id="intake_narrator_mascot",
+            row=2
+        )
+        self.btn_narrator.callback = self.on_narrator_clicked
+        self.add_item(self.btn_narrator)
+
+    async def on_narrator_clicked(self, interaction: discord.Interaction):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+        except Exception:
+            pass
+        PENDING_INTAKE.pop(self.channel.id, None)
+        status_msg = await reply_safely(
+            interaction.message or self.channel,
+            content=f"🎙️ **Synthesizing Asfan-Style Mascot Narrator Short...**\n• Character: Animated Host Mascot (w/ speaking bounce)\n• Voice: ElevenLabs-grade Human Speech (`am_adam`)\n• Creator: **{self.creator.upper()}**\n⏳ Downloading clip & assembling 9:16 Short..."
+        )
+        from autoclip import narrator_engine
+        out_dir = Path("C:/Users/swastik/Downloads")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = str(out_dir / f"{self.creator.title()}_Narrator_Short_{int(time.time())}.mp4")
+
+        # Slice 30s using yt-dlp
+        temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
+        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, self.url]
+        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
+
+        if not os.path.exists(temp_src):
+            dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
+            await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+
+        try:
+            loop = asyncio.get_event_loop()
+            res = await loop.run_in_executor(
+                None,
+                lambda: narrator_engine.render_mascot_commentary_short(
+                    clip_path=temp_src,
+                    output_path=out_file,
+                    creator_slug=self.creator,
+                    script_preset_idx=0
+                )
+            )
+            if os.path.exists(res):
+                await status_msg.edit(content=f"✅ **Asfan-Style Mascot Narrator Short Ready!**\n📁 File: `{res}`")
+                await send_video_safely(
+                    self.channel,
+                    res,
+                    caption=f"🎙️ **{self.creator.upper()} Mascot Narrator Short (Asfan Animation Style):**"
+                )
+            else:
+                await status_msg.edit(content="❌ Failed to render mascot narrator short.")
+        except Exception as ex:
+            await status_msg.edit(content=f"❌ Error during mascot narrator render: {ex}")
 
     async def on_toggle_blur(self, interaction: discord.Interaction):
         self.layout_mode = "blur_fill"
@@ -3375,7 +3491,39 @@ async def on_message(message):
 
             # Check for normal clips vs top 5
             is_normal = any(k in user_text for k in ["normal", "individual", "5 shorts", "standalone", "separate", "normal clips"])
-            if is_normal:
+            is_narrator = any(k in user_text for k in ["narrator", "mascot", "asfan", "speaking", "yes narrator", "include narrator", "narrator yes"])
+            if is_narrator:
+                PENDING_INTAKE.pop(message.channel.id, None)
+                from autoclip import narrator_engine
+                out_dir = Path("C:/Users/swastik/Downloads")
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out_file = str(out_dir / f"{c.title()}_Narrator_Short_{int(time.time())}.mp4")
+                status_msg = await reply_safely(
+                    message,
+                    content=f"🎙️ **Synthesizing Asfan-Style Mascot Narrator Short for {c.upper()}...**\n• Human Voice: ElevenLabs-grade Kokoro (`am_adam`)\n• Mascot: Asfan Animation Host Character\n⏳ Rendering..."
+                )
+                temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
+                dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, u]
+                await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
+                if not os.path.exists(temp_src):
+                    dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, u]
+                    await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+                res = await asyncio.to_thread(
+                    narrator_engine.render_mascot_commentary_short,
+                    clip_path=temp_src,
+                    output_path=out_file,
+                    creator_slug=c,
+                    script_preset_idx=0
+                )
+                if os.path.exists(res):
+                    await status_msg.edit(content=f"✅ **Asfan-Style Mascot Narrator Short Ready!**\n📁 File: `{res}`")
+                    await send_video_safely(
+                        message.channel,
+                        res,
+                        caption=f"🎙️ **{c.upper()} Mascot Narrator Short (Asfan Animation Style):**"
+                    )
+                return
+            elif is_normal:
                 PENDING_INTAKE.pop(message.channel.id, None)
                 await start_video_production(
                     channel=message.channel,
@@ -3727,20 +3875,15 @@ async def on_message(message):
 
             c_display = c_found.upper()
             intake_embed = discord.Embed(
-                title=f"🎬 AutoClip AI Production: Choose Format & Theme",
+                title=f"🎬 AutoClip AI Production: Choose Format",
                 description=(
                     f"**Detected Video:** `{v_title or u}`\n"
-                    f"**Detected Streamer:** **{c_display}**\n\n"
-                    f"🎯 **Select how you would like AutoClip to produce this video:**\n\n"
-                    f"1️⃣ **Top 5 Countdown Short** — Pick a theme from the dropdown menu below:\n"
-                    f"   • *IShowSpeed:* Top 5 Foods He's Eating, Funniest, Cringiest, Scariest, Wildest\n"
-                    f"   • *Jynxzi:* Top 5 Headshots & Snipes, Best Gameplays, Rage Moments, Funniest\n"
-                    f"   • *CaseOh:* Top 5 Horror Jumpscares, Funny Rage & Bans, Food/Waffle House, Funniest\n"
-                    f"   • *Kai Cenat:* Top 5 Funniest, Craziest Stream Chaos, Celebrity Reactions\n"
-                    f"   • *Or select '✍️ Custom Theme...' to type your own!*\n\n"
-                    f"2️⃣ **🎬 5 Normal Ranked Shorts** — Click the button below for individual clips\n\n"
-                    f"🖼️ **Layout Selection:** Choose between **MrBeast Blur** (16:9 centered with blurred background) or **Split-Screen**.\n\n"
-                    f"💬 *You can also simply reply with your choice in chat! (e.g. 'top 5 foods', 'top 5 funniest', 'normal clips')*"
+                    f"**Detected Creator:** **{c_display}**\n\n"
+                    f"🎙️ **Would you like to include the Animated Narrator Mascot?**\n"
+                    f"• **[🎙️ Include Narrator]**: Asfan-style animated character commentary with ElevenLabs-caliber human voice (`am_adam`)!\n"
+                    f"• **[🎬 5 Normal Ranked Shorts]**: Individual viral clips\n"
+                    f"• **[🏆 Top 5 Countdown]**: Pick a theme from the dropdown menu\n\n"
+                    f"💬 *Or just reply in chat with: 'narrator', 'top 5 funniest', or 'normal clips'!*"
                 ),
                 color=0xFFD200
             )
