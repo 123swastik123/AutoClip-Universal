@@ -30,7 +30,7 @@ if sys.platform == "win32":
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from autoclip import config, bot as bot_engine, creators, composio_client, channel_routing, llm as llm_mod, edit as edit_mod, format as format_mod, mediatools as mt, youtube_pipeline, memory as memory_mod, video_radar, long_stream, excel_tracker, workflows
+from autoclip import config, bot as bot_engine, creators, composio_client, channel_routing, llm as llm_mod, edit as edit_mod, format as format_mod, mediatools as mt, youtube_pipeline, memory as memory_mod, video_radar, long_stream, excel_tracker
 
 try:
     import discord
@@ -2328,48 +2328,11 @@ async def slash_status(interaction: discord.Interaction):
         description="Autonomous Short Generator, Voice Companion & YouTube Publisher",
         color=0x10B981
     )
-    active_wf = workflows.get_active_workflow()
-    target_ch = os.environ.get("YOUTUBE_CHANNEL_NAME", "Target YouTube Channel")
-    target_handle = os.environ.get("YOUTUBE_CHANNEL_HANDLE", "@TargetChannel")
-    niche_desc = os.environ.get("TARGET_NICHE", "Custom Video Automation")
-
-    embed.add_field(name="Active Workflow", value=f"⚡ **{active_wf.get('name', 'Universal Auto')}**\nLayout: `{active_wf.get('layout')}`", inline=True)
+    embed.add_field(name="Guardrails", value="✅ **0 SFX Active**\n✅ **Golden Pop Subtitles (#FFD200)**\n✅ **9:16 Face-Tracking Reframe**", inline=True)
     embed.add_field(name="Voice Chat", value=f"🔊 **{vc_status}**\nEngine: edge-tts (`{TTS_VOICE}`)", inline=True)
-    embed.add_field(name="Target Channel", value=f"Channel: **{target_ch} ({target_handle})**\nNiche: *{niche_desc}*", inline=False)
+    embed.add_field(name="Natural Upload", value="✅ **Voice / Text Upload Active**\nButtons: [🚀 Upload #1], [🚀 Upload #2]", inline=False)
+    embed.add_field(name="YouTube Target", value="Channel: **Ask What? (@askwhatt)**\nVia: Direct S3 Streaming MCP", inline=False)
     await interaction.response.send_message(embed=embed)
-
-@bot.tree.command(name="workflows", description="List all available AutoClip video editing workflows")
-async def slash_workflows(interaction: discord.Interaction):
-    all_wf = workflows.list_workflows()
-    embed = discord.Embed(
-        title="🎬 AutoClip Modular Video Workflows",
-        description="Switch workflows using `/set_workflow <id>` to change editing style, layout, and pacing:",
-        color=0x5865F2
-    )
-    for wf in all_wf:
-        badge = " ⭐ **[ACTIVE]**" if wf.get("is_active") else ""
-        embed.add_field(
-            name=f"{wf.get('name')}{badge} (`{wf.get('id')}`)",
-            value=f"{wf.get('description')}\n• **Layout:** `{wf.get('layout')}` | **Max:** `{wf.get('max_duration', 60)}s` | **Niche:** *{wf.get('target_niche')}*",
-            inline=False
-        )
-    await interaction.response.send_message(embed=embed)
-
-@bot.tree.command(name="set_workflow", description="Change active editing workflow preset")
-@app_commands.describe(workflow_id="ID of workflow (e.g. countdown_montage, universal_auto, podcast_split, smart_highlights)")
-async def slash_set_workflow(interaction: discord.Interaction, workflow_id: str):
-    success = workflows.set_active_workflow(workflow_id.strip().lower())
-    if success:
-        active_wf = workflows.get_active_workflow()
-        await interaction.response.send_message(
-            f"✅ **Active Workflow Changed!**\nNow using: **{active_wf.get('name')}** (`{active_wf.get('id')}`)\n*{active_wf.get('description')}*"
-        )
-    else:
-        valid_ids = ", ".join([f"`{w['id']}`" for w in workflows.list_workflows()])
-        await interaction.response.send_message(
-            f"❌ Unknown workflow ID `{workflow_id}`.\nAvailable IDs: {valid_ids}",
-            ephemeral=True
-        )
 
 @bot.tree.command(name="streamers", description="View supported streamer viral profiles, music pools & audience upload windows")
 async def slash_streamers(interaction: discord.Interaction):
@@ -2430,6 +2393,46 @@ async def slash_clip(interaction: discord.Interaction, url: str, creator: app_co
     await interaction.response.defer()
     c_val = creator.value if creator else None
     await handle_clip_pipeline(interaction.channel, url, c_val, auto_upload=upload, interaction=interaction)
+
+@bot.tree.command(name="narrate", description="Create an Asfan-style animated mascot commentary Short on Speed")
+@app_commands.describe(
+    clip="Video file path or YouTube URL to narrate",
+    title="Top header banner text (e.g. SPEED REALLY TRIED HIS BEST... 💀)",
+    preset="Script preset (0: Rizz Fail, 1: Unhinged Crashout, 2: Disaster L)"
+)
+async def slash_narrate(interaction: discord.Interaction, clip: str, title: str = None, preset: int = 0):
+    await interaction.response.defer()
+    from autoclip import narrator_engine
+    out_dir = Path("C:/Users/swastik/Downloads")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = str(out_dir / f"Speed_Narrator_{int(time.time())}.mp4")
+    
+    clip_path = clip
+    if clip.startswith("http"):
+        temp_src = str(out_dir / f"temp_source_{int(time.time())}.mp4")
+        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, clip]
+        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
+        if os.path.exists(temp_src):
+            clip_path = temp_src
+    
+    try:
+        await interaction.followup.send("🎙️ **Synthesizing Asfan-style Mascot Narrator Short for Speed...**")
+        res = await asyncio.to_thread(
+            narrator_engine.render_mascot_commentary_short,
+            clip_path=clip_path,
+            output_path=out_file,
+            script_preset_idx=preset,
+            custom_title=title
+        )
+        if os.path.exists(res):
+            await interaction.followup.send(
+                content=f"✅ **Mascot Narrator Short Generated!**\n📁 Saved to: `{res}`",
+                file=discord.File(res) if os.path.getsize(res) < 25 * 1024 * 1024 else None
+            )
+        else:
+            await interaction.followup.send("❌ Render failed: Output file was not found.")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error generating narrator short: {e}")
 
 @bot.tree.command(name="keep", description="Keep and protect source videos from 15-second automatic deletion")
 async def slash_keep(interaction: discord.Interaction):

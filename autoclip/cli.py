@@ -676,6 +676,19 @@ def cmd_top5(args):
     out = top5_assembler.assemble_top5(clips=clips, titles=titles, output_path=args.out)
     print(f"\n[AutoClip Top 5] Output successfully generated at: {out}")
 
+def cmd_narrate(args):
+    from . import narrator_engine
+    clip = args.clip
+    out = args.out or "speed_narrator_short.mp4"
+    title = getattr(args, "title", None)
+    preset = getattr(args, "preset", 0)
+    narrator_engine.render_mascot_commentary_short(
+        clip_path=clip,
+        output_path=out,
+        script_preset_idx=preset,
+        custom_title=title
+    )
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="autoclip")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -733,6 +746,13 @@ def main(argv=None):
     p.add_argument("--titles", default=None, help="Comma-separated titles for the clips")
     p.add_argument("--out", default=None, help="Output MP4 file path")
     p.set_defaults(fn=cmd_top5)
+
+    p = sub.add_parser("narrate")
+    p.add_argument("--clip", required=True, help="Input video clip to narrate")
+    p.add_argument("--title", default=None, help="Top header banner title")
+    p.add_argument("--preset", type=int, default=0, help="Script preset index (0, 1, or 2)")
+    p.add_argument("--out", default=None, help="Output MP4 file path")
+    p.set_defaults(fn=cmd_narrate)
 
     args = ap.parse_args(argv)
     args.fn(args)
