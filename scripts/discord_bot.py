@@ -616,17 +616,26 @@ class VideoIntakeChoiceView(discord.ui.View):
         self.btn_split.callback = self.on_toggle_split
         self.add_item(self.btn_split)
 
-        # Row 2: Mascot Narrator Button (Asfan Animation Style)
-        self.btn_narrator = discord.ui.Button(
-            label="🎙️ Include Narrator (Asfan Mascot)",
+        # Row 2: Two dedicated formats for user choice
+        self.btn_format_a = discord.ui.Button(
+            label="🏆 Format A: Blind Ranking (Asfan Cat)",
             style=discord.ButtonStyle.success,
-            custom_id="intake_narrator_mascot",
+            custom_id="intake_format_a_ranking",
             row=2
         )
-        self.btn_narrator.callback = self.on_narrator_clicked
-        self.add_item(self.btn_narrator)
+        self.btn_format_a.callback = self.on_format_a_clicked
+        self.add_item(self.btn_format_a)
 
-    async def on_narrator_clicked(self, interaction: discord.Interaction):
+        self.btn_format_b = discord.ui.Button(
+            label="🎙️ Format B: 3s Hook-and-Drop (Kokoro AI)",
+            style=discord.ButtonStyle.primary,
+            custom_id="intake_format_b_hook",
+            row=2
+        )
+        self.btn_format_b.callback = self.on_format_b_clicked
+        self.add_item(self.btn_format_b)
+
+    async def on_format_a_clicked(self, interaction: discord.Interaction):
         try:
             if not interaction.response.is_done():
                 await interaction.response.defer()
@@ -635,18 +644,16 @@ class VideoIntakeChoiceView(discord.ui.View):
         PENDING_INTAKE.pop(self.channel.id, None)
         status_msg = await reply_safely(
             interaction.message or self.channel,
-            content=f"🎙️ **Synthesizing Asfan-Style Mascot Narrator Short...**\n• Character: Animated Host Mascot (w/ speaking bounce)\n• Voice: ElevenLabs-grade Human Speech (`am_adam`)\n• Creator: **{self.creator.upper()}**\n⏳ Downloading clip & assembling 9:16 Short..."
+            content=f"🏆 **Rendering Format A: Asfan Live Blind Ranking Short...**\n• Left-side interactive 1-to-5 ranking ladder\n• Cute chibi dancing cat mascot\n• Creator: **{self.creator.upper()}**\n⏳ Processing..."
         )
         from autoclip import narrator_engine
         out_dir = Path("C:/Users/swastik/Downloads")
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_file = str(out_dir / f"{self.creator.title()}_Narrator_Short_{int(time.time())}.mp4")
+        out_file = str(out_dir / f"{self.creator.title()}_FormatA_Ranking_{int(time.time())}.mp4")
 
-        # Slice 30s using yt-dlp
         temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
-        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, self.url]
+        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-35", "-o", temp_src, self.url]
         await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
-
         if not os.path.exists(temp_src):
             dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
             await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
@@ -655,24 +662,68 @@ class VideoIntakeChoiceView(discord.ui.View):
             loop = asyncio.get_event_loop()
             res = await loop.run_in_executor(
                 None,
-                lambda: narrator_engine.render_mascot_commentary_short(
+                lambda: narrator_engine.render_format_a_ranking_challenge(
                     clip_path=temp_src,
                     output_path=out_file,
-                    creator_slug=self.creator,
-                    script_preset_idx=0
+                    creator_slug=self.creator
                 )
             )
             if os.path.exists(res):
-                await status_msg.edit(content=f"✅ **Asfan-Style Mascot Narrator Short Ready!**\n📁 File: `{res}`")
+                await status_msg.edit(content=f"✅ **Format A (Blind Ranking) Ready!**\n📁 File: `{res}`")
                 await send_video_safely(
                     self.channel,
                     res,
-                    caption=f"🎙️ **{self.creator.upper()} Mascot Narrator Short (Asfan Animation Style):**"
+                    caption=f"🏆 **{self.creator.upper()} - Live Blind Ranking Challenge (Format A):**"
                 )
             else:
-                await status_msg.edit(content="❌ Failed to render mascot narrator short.")
+                await status_msg.edit(content="❌ Failed to render Format A short.")
         except Exception as ex:
-            await status_msg.edit(content=f"❌ Error during mascot narrator render: {ex}")
+            await status_msg.edit(content=f"❌ Error during Format A render: {ex}")
+
+    async def on_format_b_clicked(self, interaction: discord.Interaction):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+        except Exception:
+            pass
+        PENDING_INTAKE.pop(self.channel.id, None)
+        status_msg = await reply_safely(
+            interaction.message or self.channel,
+            content=f"🎙️ **Rendering Format B: 3-Second Hook-and-Drop Story Short...**\n• Human Voice: Kokoro `am_adam` ElevenLabs-caliber TTS\n• 3s Hook -> Raw Creator Audio Climax -> Closing Outro\n• Creator: **{self.creator.upper()}**\n⏳ Processing..."
+        )
+        from autoclip import narrator_engine
+        out_dir = Path("C:/Users/swastik/Downloads")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = str(out_dir / f"{self.creator.title()}_FormatB_HookAndDrop_{int(time.time())}.mp4")
+
+        temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
+        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, self.url]
+        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
+        if not os.path.exists(temp_src):
+            dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
+            await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+
+        try:
+            loop = asyncio.get_event_loop()
+            res = await loop.run_in_executor(
+                None,
+                lambda: narrator_engine.render_format_b_hook_and_drop(
+                    clip_path=temp_src,
+                    output_path=out_file,
+                    creator_slug=self.creator
+                )
+            )
+            if os.path.exists(res):
+                await status_msg.edit(content=f"✅ **Format B (3s Hook-and-Drop) Ready!**\n📁 File: `{res}`")
+                await send_video_safely(
+                    self.channel,
+                    res,
+                    caption=f"🎙️ **{self.creator.upper()} - 3s Hook-and-Drop Story (Format B):**"
+                )
+            else:
+                await status_msg.edit(content="❌ Failed to render Format B short.")
+        except Exception as ex:
+            await status_msg.edit(content=f"❌ Error during Format B render: {ex}")
 
     async def on_normal_clicked(self, interaction: discord.Interaction):
         try:
@@ -766,17 +817,26 @@ class LongStreamIntakeView(discord.ui.View):
         self.btn_split.callback = self.on_toggle_split
         self.add_item(self.btn_split)
 
-        # Row 2: Mascot Narrator Button (Asfan Animation Style)
-        self.btn_narrator = discord.ui.Button(
-            label="🎙️ Include Narrator (Asfan Mascot)",
+        # Row 2: Two dedicated formats for user choice
+        self.btn_format_a = discord.ui.Button(
+            label="🏆 Format A: Blind Ranking (Asfan Cat)",
             style=discord.ButtonStyle.success,
-            custom_id="intake_narrator_mascot",
+            custom_id="intake_format_a_ranking",
             row=2
         )
-        self.btn_narrator.callback = self.on_narrator_clicked
-        self.add_item(self.btn_narrator)
+        self.btn_format_a.callback = self.on_format_a_clicked
+        self.add_item(self.btn_format_a)
 
-    async def on_narrator_clicked(self, interaction: discord.Interaction):
+        self.btn_format_b = discord.ui.Button(
+            label="🎙️ Format B: 3s Hook-and-Drop (Kokoro AI)",
+            style=discord.ButtonStyle.primary,
+            custom_id="intake_format_b_hook",
+            row=2
+        )
+        self.btn_format_b.callback = self.on_format_b_clicked
+        self.add_item(self.btn_format_b)
+
+    async def on_format_a_clicked(self, interaction: discord.Interaction):
         try:
             if not interaction.response.is_done():
                 await interaction.response.defer()
@@ -785,18 +845,16 @@ class LongStreamIntakeView(discord.ui.View):
         PENDING_INTAKE.pop(self.channel.id, None)
         status_msg = await reply_safely(
             interaction.message or self.channel,
-            content=f"🎙️ **Synthesizing Asfan-Style Mascot Narrator Short...**\n• Character: Animated Host Mascot (w/ speaking bounce)\n• Voice: ElevenLabs-grade Human Speech (`am_adam`)\n• Creator: **{self.creator.upper()}**\n⏳ Downloading clip & assembling 9:16 Short..."
+            content=f"🏆 **Rendering Format A: Asfan Live Blind Ranking Short...**\n• Left-side interactive 1-to-5 ranking ladder\n• Cute chibi dancing cat mascot\n• Creator: **{self.creator.upper()}**\n⏳ Processing..."
         )
         from autoclip import narrator_engine
         out_dir = Path("C:/Users/swastik/Downloads")
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_file = str(out_dir / f"{self.creator.title()}_Narrator_Short_{int(time.time())}.mp4")
+        out_file = str(out_dir / f"{self.creator.title()}_FormatA_Ranking_{int(time.time())}.mp4")
 
-        # Slice 30s using yt-dlp
         temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
-        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, self.url]
+        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-35", "-o", temp_src, self.url]
         await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
-
         if not os.path.exists(temp_src):
             dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
             await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
@@ -805,24 +863,68 @@ class LongStreamIntakeView(discord.ui.View):
             loop = asyncio.get_event_loop()
             res = await loop.run_in_executor(
                 None,
-                lambda: narrator_engine.render_mascot_commentary_short(
+                lambda: narrator_engine.render_format_a_ranking_challenge(
                     clip_path=temp_src,
                     output_path=out_file,
-                    creator_slug=self.creator,
-                    script_preset_idx=0
+                    creator_slug=self.creator
                 )
             )
             if os.path.exists(res):
-                await status_msg.edit(content=f"✅ **Asfan-Style Mascot Narrator Short Ready!**\n📁 File: `{res}`")
+                await status_msg.edit(content=f"✅ **Format A (Blind Ranking) Ready!**\n📁 File: `{res}`")
                 await send_video_safely(
                     self.channel,
                     res,
-                    caption=f"🎙️ **{self.creator.upper()} Mascot Narrator Short (Asfan Animation Style):**"
+                    caption=f"🏆 **{self.creator.upper()} - Live Blind Ranking Challenge (Format A):**"
                 )
             else:
-                await status_msg.edit(content="❌ Failed to render mascot narrator short.")
+                await status_msg.edit(content="❌ Failed to render Format A short.")
         except Exception as ex:
-            await status_msg.edit(content=f"❌ Error during mascot narrator render: {ex}")
+            await status_msg.edit(content=f"❌ Error during Format A render: {ex}")
+
+    async def on_format_b_clicked(self, interaction: discord.Interaction):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+        except Exception:
+            pass
+        PENDING_INTAKE.pop(self.channel.id, None)
+        status_msg = await reply_safely(
+            interaction.message or self.channel,
+            content=f"🎙️ **Rendering Format B: 3-Second Hook-and-Drop Story Short...**\n• Human Voice: Kokoro `am_adam` ElevenLabs-caliber TTS\n• 3s Hook -> Raw Creator Audio Climax -> Closing Outro\n• Creator: **{self.creator.upper()}**\n⏳ Processing..."
+        )
+        from autoclip import narrator_engine
+        out_dir = Path("C:/Users/swastik/Downloads")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = str(out_dir / f"{self.creator.title()}_FormatB_HookAndDrop_{int(time.time())}.mp4")
+
+        temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
+        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, self.url]
+        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
+        if not os.path.exists(temp_src):
+            dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
+            await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+
+        try:
+            loop = asyncio.get_event_loop()
+            res = await loop.run_in_executor(
+                None,
+                lambda: narrator_engine.render_format_b_hook_and_drop(
+                    clip_path=temp_src,
+                    output_path=out_file,
+                    creator_slug=self.creator
+                )
+            )
+            if os.path.exists(res):
+                await status_msg.edit(content=f"✅ **Format B (3s Hook-and-Drop) Ready!**\n📁 File: `{res}`")
+                await send_video_safely(
+                    self.channel,
+                    res,
+                    caption=f"🎙️ **{self.creator.upper()} - 3s Hook-and-Drop Story (Format B):**"
+                )
+            else:
+                await status_msg.edit(content="❌ Failed to render Format B short.")
+        except Exception as ex:
+            await status_msg.edit(content=f"❌ Error during Format B render: {ex}")
 
     async def on_toggle_blur(self, interaction: discord.Interaction):
         self.layout_mode = "blur_fill"
@@ -3879,11 +3981,12 @@ async def on_message(message):
                 description=(
                     f"**Detected Video:** `{v_title or u}`\n"
                     f"**Detected Creator:** **{c_display}**\n\n"
-                    f"🎙️ **Would you like to include the Animated Narrator Mascot?**\n"
-                    f"• **[🎙️ Include Narrator]**: Asfan-style animated character commentary with ElevenLabs-caliber human voice (`am_adam`)!\n"
-                    f"• **[🎬 5 Normal Ranked Shorts]**: Individual viral clips\n"
-                    f"• **[🏆 Top 5 Countdown]**: Pick a theme from the dropdown menu\n\n"
-                    f"💬 *Or just reply in chat with: 'narrator', 'top 5 funniest', or 'normal clips'!*"
+                    f"✨ **Choose Your Video Production Format:**\n"
+                    f"• **`[🏆 Format A: Blind Ranking]`**: Asfan-style interactive 1-to-5 ranking ladder + pop SFX + cute dancing chibi cat mascot!\n"
+                    f"• **`[🎙️ Format B: 3s Hook-and-Drop]`**: Human ElevenLabs-tier AI hook (`am_adam`) for 3s, then drops silent so Speed's raw screaming & punchlines hit at 100% volume!\n"
+                    f"• **`[🎬 5 Normal Ranked Shorts]`**: Individual standalone viral clips\n"
+                    f"• **`[🏆 Top 5 Countdown]`**: Choose a theme from the dropdown below\n\n"
+                    f"💬 *Or reply in chat with: 'format a', 'format b', 'top 5', or 'normal clips'!*"
                 ),
                 color=0xFFD200
             )
