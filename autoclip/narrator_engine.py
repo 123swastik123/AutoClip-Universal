@@ -2,15 +2,20 @@
 
 Features:
 - Format A: The Asfan "Live Blind Ranking Challenge" (1 to 5 interactive left-side ladder + pop SFX + dancing chibi cat)
-- Format B: The "3-Second AI Hook-and-Drop" Viral Story Short (Kokoro am_adam 3s hook -> raw uncut Speed chaos -> outro punchline)
+- Format B: The "3-Second AI Hook-and-Drop" Viral Story Short (Kokoro am_adam 3s hook -> raw uncut creator chaos -> outro punchline)
 - High-resolution cute chibi cat mascot (chibi_cat_mascot.png) scaled subtley (95px) at the bottom
 - Universal creator support: Speed, CaseOh, Jynxzi, Kai Cenat, or any creator
+- Bulletproof source downloader (yt-dlp with mp4 auto-merge and format fallbacks)
+- Auto-downloader for Kokoro ONNX model weights with edge-tts fallback
 """
 
 import os
 import sys
 import json
+import glob
+import asyncio
 import subprocess
+import urllib.request
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -31,6 +36,114 @@ DEFAULT_POP_SFX = SFX_DIR / "whoosh.wav"
 
 DEFAULT_VOICE = "am_adam"  # ElevenLabs-caliber American male voice
 
+
+def ensure_kokoro_models():
+    """Ensure Kokoro ONNX model weights and voice embeddings exist; download if missing."""
+    if KOKORO_MODEL.exists() and KOKORO_VOICES.exists():
+        return
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    model_url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
+    voices_url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
+    if not KOKORO_MODEL.exists():
+        print(f"[Kokoro] Downloading kokoro-v1.0.onnx to {KOKORO_MODEL}...")
+        urllib.request.urlretrieve(model_url, str(KOKORO_MODEL))
+    if not KOKORO_VOICES.exists():
+        print(f"[Kokoro] Downloading voices-v1.0.bin to {KOKORO_VOICES}...")
+        urllib.request.urlretrieve(voices_url, str(KOKORO_VOICES))
+
+
+def download_source_clip(url: str, output_path: str, max_duration: int = 35) -> str:
+    """Download up to max_duration seconds of YouTube/external video reliably as an MP4.
+    
+    Uses yt-dlp with flexible format selection (bestvideo+bestaudio merged into mp4),
+    verifies file existence, and ensures FFmpeg compatibility.
+    """
+    output_path = str(Path(output_path).resolve())
+    out_dir = os.path.dirname(output_path)
+    os.makedirs(out_dir, exist_ok=True)
+    base_prefix = os.path.splitext(output_path)[0]
+
+    # Command 1: Try downloading section with bestvideo+bestaudio merged to mp4
+    cmd1 = [
+        sys.executable, "-m", "yt_dlp",
+        "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        "--merge-output-format", "mp4",
+        "--download-sections", f"*0-{max_duration}",
+        "--no-playlist",
+        "--no-warnings",
+        "--force-overwrites",
+        "-o", output_path,
+        url
+    ]
+    res1 = subprocess.run(cmd1, capture_output=True, text=True)
+
+    if not (os.path.exists(output_path) and os.path.getsize(output_path) > 10000):
+        # Command 2: Fallback without section download (full clip then trimmed)
+        cmd2 = [
+            sys.executable, "-m", "yt_dlp",
+            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+            "--merge-output-format", "mp4",
+            "--no-playlist",
+            "--no-warnings",
+            "--force-overwrites",
+            "-o", output_path,
+            url
+        ]
+        res2 = subprocess.run(cmd2, capture_output=True, text=True)
+
+    # Check potential output variations
+    possible_files = [
+        output_path,
+        f"{output_path}.mp4",
+        f"{output_path}.webm",
+        f"{output_path}.mkv",
+        f"{base_prefix}.mp4",
+        f"{base_prefix}.webm",
+        f"{base_prefix}.mkv"
+    ]
+    for pf in possible_files:
+        if os.path.exists(pf) and os.path.getsize(pf) > 10000:
+            if not pf.lower().endswith(".mp4"):
+                # Remux to standard MP4
+                subprocess.run([
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", "0", "-t", str(max_duration), "-i", pf,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                    output_path
+                ], check=True)
+                return output_path
+            return pf
+
+    # Search directory for any files matching base_prefix
+    matches = glob.glob(f"{glob.escape(base_prefix)}*")
+    for m in matches:
+        if os.path.isfile(m) and os.path.getsize(m) > 10000 and not m.endswith(".part"):
+            if not m.lower().endswith(".mp4"):
+                subprocess.run([
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", "0", "-t", str(max_duration), "-i", m,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                    output_path
+                ], check=True)
+                return output_path
+            return m
+
+    # If completely failed, collect stderr from both attempts
+    err_msg = res1.stderr or res2.stderr or "Unknown download error"
+    raise RuntimeError(f"Could not download video from {url}: {err_msg.strip()[:200]}")
+
+
+def has_audio_stream(file_path: str) -> bool:
+    """Check if the media file has at least one valid audio stream."""
+    cmd = [
+        "ffprobe", "-v", "error", "-select_streams", "a",
+        "-show_entries", "stream=codec_name",
+        "-of", "default=noprint_wrappers=1:nokey=1", str(file_path)
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    return bool(res.stdout.strip())
+
+
 def get_media_duration(file_path: str) -> float:
     cmd = [
         "ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -38,30 +151,49 @@ def get_media_duration(file_path: str) -> float:
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     try:
-        return float(res.stdout.strip())
+        val = float(res.stdout.strip())
+        return val if val > 0 else 16.0
     except Exception:
         return 16.0
 
+
 def synthesize_kokoro_voice(text: str, out_wav: str, voice: str = DEFAULT_VOICE, speed: float = 1.05) -> str:
-    """Generate human-like ElevenLabs-grade speech via local Kokoro ONNX."""
-    import soundfile as sf
-    from kokoro_onnx import Kokoro
-
-    if not KOKORO_MODEL.exists() or not KOKORO_VOICES.exists():
-        raise FileNotFoundError(f"Kokoro model files not found in: {MODELS_DIR}")
-
-    kokoro = Kokoro(str(KOKORO_MODEL), str(KOKORO_VOICES))
-    samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
-    
+    """Generate human-like ElevenLabs-grade speech via local Kokoro ONNX with edge-tts fallback."""
     os.makedirs(os.path.dirname(os.path.abspath(out_wav)), exist_ok=True)
-    sf.write(out_wav, samples, sample_rate)
-    return out_wav
+    try:
+        ensure_kokoro_models()
+        import soundfile as sf
+        from kokoro_onnx import Kokoro
+
+        kokoro = Kokoro(str(KOKORO_MODEL), str(KOKORO_VOICES))
+        samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang="en-us")
+        sf.write(out_wav, samples, sample_rate)
+        return out_wav
+    except Exception as e:
+        print(f"[Kokoro Warning] Fallback to edge-tts due to: {e}")
+        # Synchronous wrapper around edge-tts fallback
+        async def _edge_fallback():
+            import edge_tts
+            communicate = edge_tts.Communicate(text, "en-US-ChristopherNeural")
+            temp_mp3 = out_wav + ".mp3"
+            await communicate.save(temp_mp3)
+            subprocess.run([
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-i", temp_mp3, "-ac", "1", "-ar", "24000", out_wav
+            ], check=True)
+            if os.path.exists(temp_mp3):
+                os.remove(temp_mp3)
+
+        asyncio.run(_edge_fallback())
+        return out_wav
+
 
 def format_time(seconds: float) -> str:
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = seconds % 60
     return f"{hours}:{minutes:02d}:{secs:05.2f}"
+
 
 # =========================================================================
 # FORMAT A: Asfan "Live Blind Ranking Challenge"
@@ -75,6 +207,9 @@ def render_format_a_ranking_challenge(
 ) -> str:
     """Render Format A: Full vertical video with animated left-side 1-to-5 rank ladder and dancing chibi cat."""
     clip_path = str(Path(clip_path).resolve())
+    if not os.path.exists(clip_path):
+        raise FileNotFoundError(f"Source video file does not exist: {clip_path}")
+
     total_dur = min(get_media_duration(clip_path), 50.0)
     header = header_title or f"RANKING {creator_slug.upper()}'S CRAZIEST MOMENTS 💀"
 
@@ -87,11 +222,9 @@ def render_format_a_ranking_challenge(
     ]
     rank_items = ranks or default_ranks
 
-    # Generate ASS for Left-Hand Ranking Ladder
     temp_dir = Path(os.environ.get("TEMP", r"C:\Users\swastik\AppData\Local\Temp"))
     temp_ass = temp_dir / "asfan_ranking_ladder.ass"
 
-    # Step intervals for revealing each rank
     step_dur = max(total_dur / (len(rank_items) + 1), 2.5)
 
     ass_content = f"""[Script Info]
@@ -114,7 +247,6 @@ Dialogue: 0,0:00:00.00,{format_time(total_dur)},Header,,0,0,0,,{{\\pos(540,110)\
     for idx, text in enumerate(rank_items):
         t_appear = format_time(idx * step_dur)
         y_pos = y_start + (idx * y_gap)
-        # Highlight ranks with pop color
         color_tag = "\\c&H0050FF&" if idx == 0 else "\\c&H00FFFF&" if idx == 1 else "\\c&H00D2FF&"
         ass_content += f"Dialogue: 0,{t_appear},{format_time(total_dur)},RankItem,,0,0,0,,{{\\pos(60,{y_pos}){color_tag}}}{text}\n"
 
@@ -129,13 +261,11 @@ Dialogue: 0,0:00:00.00,{format_time(total_dur)},Header,,0,0,0,,{{\\pos(540,110)\
     if has_cat:
         inputs.extend(["-loop", "1", "-i", cat_png])
 
-    # Full 9:16 layout + subtle 95px cat bobbing at bottom + ranking ladder
     v_filters = [
         "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[v_base]"
     ]
     cur_v = "[v_base]"
     if has_cat:
-        # Scale cat to 95px width and animate slight joyful bobbing at bottom
         v_filters.append("[1:v]scale=95:-1:flags=lanczos[cat]")
         v_filters.append(f"{cur_v}[cat]overlay=60:'1780+8*abs(sin(t*10))'[with_cat]")
         cur_v = "[with_cat]"
@@ -157,6 +287,7 @@ Dialogue: 0,0:00:00.00,{format_time(total_dur)},Header,,0,0,0,,{{\\pos(540,110)\
     subprocess.run(cmd, check=True)
     return output_path
 
+
 # =========================================================================
 # FORMAT B: 3-Second AI Hook-and-Drop Viral Story Short
 # =========================================================================
@@ -171,9 +302,12 @@ def render_format_b_hook_and_drop(
 ) -> str:
     """Render Format B: 3s AI Hook -> Raw Speed Chaos -> Outro Punchline (Kokoro Human Voice)."""
     clip_path = str(Path(clip_path).resolve())
-    total_dur = min(max(get_media_duration(clip_path), 12.0), 30.0)
+    if not os.path.exists(clip_path):
+        raise FileNotFoundError(f"Source video file does not exist: {clip_path}")
 
-    # Contextual hooks
+    total_dur = min(max(get_media_duration(clip_path), 12.0), 30.0)
+    has_audio = has_audio_stream(clip_path)
+
     hooks_map = {
         "speed": ("Speed really thought he had infinite aura... until this happened!", "He literally lost every single word! Drop a like if Speed took a massive L!"),
         "caseoh": ("CaseOh really thought chat wouldn't notice this...", "Look at his face, he was ready to ban the entire lobby!"),
@@ -201,7 +335,7 @@ def render_format_b_hook_and_drop(
     outro_start = max(total_dur - outro_dur - 0.5, hook_dur + 4.0)
     total_dur = outro_start + outro_dur + 0.5
 
-    # Generate Subtitles: Hook (0 -> hook_dur), Outro (outro_start -> total_dur)
+    # Generate Subtitles
     ass_content = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -226,11 +360,6 @@ Dialogue: 0,{format_time(outro_start)},{format_time(total_dur)},Subtitle,,0,0,0,
     cat_png = str(DEFAULT_CAT_MASCOT) if DEFAULT_CAT_MASCOT.exists() else ""
     bgm_path = str(DEFAULT_BGM) if DEFAULT_BGM.exists() else ""
 
-    # Build audio mix:
-    # [1:a] Hook VO (starts at 0.0)
-    # [2:a] Outro VO (delayed by outro_start)
-    # [0:a] Stream audio: ducked to 0.20 during hook and outro, but FULL 1.00 volume in the middle!
-    # [3:a] BGM ducked to 0.08
     inputs = [
         "-ss", "0", "-t", str(total_dur), "-i", clip_path,
         "-i", str(hook_audio),
@@ -254,26 +383,32 @@ Dialogue: 0,{format_time(outro_start)},{format_time(total_dur)},Subtitle,,0,0,0,
     cur_v = "[video_base]"
     if has_cat:
         cat_idx = 4 if has_bgm else 3
-        # Small cute 95px cat at bottom
         v_filters.append(f"[{cat_idx}:v]scale=95:-1:flags=lanczos[cat]")
         v_filters.append(f"{cur_v}[cat]overlay=60:'1780+8*abs(sin(t*10))'[with_cat]")
         cur_v = "[with_cat]"
 
     v_filters.append(f"{cur_v}subtitles='{ass_escaped}',setsar=1,setdar=9/16[vout]")
 
-    # Dynamic Audio Ducking: Stream volume is 0.20 during hook (0-hook_dur) and outro (outro_start-end), but 1.0 in middle!
+    # Build audio filtergraph
     a_filters = [
         f"[1:a]volume=1.45,aresample=48000[vo_hook]",
         f"[2:a]adelay={int(outro_start*1000)}|{int(outro_start*1000)},volume=1.45,aresample=48000[vo_outro]",
-        f"[0:a]volume='if(lt(t,{hook_dur}),0.20,if(gt(t,{outro_start}),0.20,1.0))':eval=frame,aresample=48000[stream_dyn]"
     ]
-    mix_inputs = "[vo_hook][vo_outro][stream_dyn]"
-    num_inputs = 3
+    mix_inputs = "[vo_hook][vo_outro]"
+    num_inputs = 2
+
+    if has_audio:
+        a_filters.append(
+            f"[0:a]volume='if(lt(t,{hook_dur}),0.20,if(gt(t,{outro_start}),0.20,1.0))':eval=frame,aresample=48000[stream_dyn]"
+        )
+        mix_inputs += "[stream_dyn]"
+        num_inputs += 1
 
     if has_bgm:
-        a_filters.append(f"[3:a]atrim=0:{total_dur},volume=0.07,aresample=48000[bgm]")
+        bgm_input_idx = 3
+        a_filters.append(f"[{bgm_input_idx}:a]atrim=0:{total_dur},volume=0.07,aresample=48000[bgm]")
         mix_inputs += "[bgm]"
-        num_inputs = 4
+        num_inputs += 1
 
     a_filters.append(f"{mix_inputs}amix=inputs={num_inputs}:duration=first:normalize=0[aout]")
 

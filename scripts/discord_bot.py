@@ -652,11 +652,16 @@ class VideoIntakeChoiceView(discord.ui.View):
         out_file = str(out_dir / f"{self.creator.title()}_FormatA_Ranking_{int(time.time())}.mp4")
 
         temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
-        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-35", "-o", temp_src, self.url]
-        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
-        if not os.path.exists(temp_src):
-            dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
-            await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+        try:
+            temp_src = await asyncio.to_thread(
+                narrator_engine.download_source_clip,
+                self.url,
+                temp_src,
+                35
+            )
+        except Exception as dl_err:
+            await status_msg.edit(content=f"❌ **Failed to download video:** {dl_err}")
+            return
 
         try:
             loop = asyncio.get_event_loop()
@@ -697,11 +702,16 @@ class VideoIntakeChoiceView(discord.ui.View):
         out_file = str(out_dir / f"{self.creator.title()}_FormatB_HookAndDrop_{int(time.time())}.mp4")
 
         temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
-        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, self.url]
-        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
-        if not os.path.exists(temp_src):
-            dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
-            await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+        try:
+            temp_src = await asyncio.to_thread(
+                narrator_engine.download_source_clip,
+                self.url,
+                temp_src,
+                30
+            )
+        except Exception as dl_err:
+            await status_msg.edit(content=f"❌ **Failed to download video:** {dl_err}")
+            return
 
         try:
             loop = asyncio.get_event_loop()
@@ -853,11 +863,16 @@ class LongStreamIntakeView(discord.ui.View):
         out_file = str(out_dir / f"{self.creator.title()}_FormatA_Ranking_{int(time.time())}.mp4")
 
         temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
-        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-35", "-o", temp_src, self.url]
-        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
-        if not os.path.exists(temp_src):
-            dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
-            await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+        try:
+            temp_src = await asyncio.to_thread(
+                narrator_engine.download_source_clip,
+                self.url,
+                temp_src,
+                35
+            )
+        except Exception as dl_err:
+            await status_msg.edit(content=f"❌ **Failed to download video:** {dl_err}")
+            return
 
         try:
             loop = asyncio.get_event_loop()
@@ -898,11 +913,16 @@ class LongStreamIntakeView(discord.ui.View):
         out_file = str(out_dir / f"{self.creator.title()}_FormatB_HookAndDrop_{int(time.time())}.mp4")
 
         temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
-        dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, self.url]
-        await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
-        if not os.path.exists(temp_src):
-            dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, self.url]
-            await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+        try:
+            temp_src = await asyncio.to_thread(
+                narrator_engine.download_source_clip,
+                self.url,
+                temp_src,
+                30
+            )
+        except Exception as dl_err:
+            await status_msg.edit(content=f"❌ **Failed to download video:** {dl_err}")
+            return
 
         try:
             loop = asyncio.get_event_loop()
@@ -3605,11 +3625,16 @@ async def on_message(message):
                     content=f"🎙️ **Synthesizing Asfan-Style Mascot Narrator Short for {c.upper()}...**\n• Human Voice: ElevenLabs-grade Kokoro (`am_adam`)\n• Mascot: Asfan Animation Host Character\n⏳ Rendering..."
                 )
                 temp_src = str(out_dir / f"temp_narrator_src_{int(time.time())}.mp4")
-                dl_cmd = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "--download-sections", "*0-30", "-o", temp_src, u]
-                await asyncio.to_thread(subprocess.run, dl_cmd, capture_output=True, text=True)
-                if not os.path.exists(temp_src):
-                    dl_fallback = ["python", "-m", "yt_dlp", "-f", "best[height<=1080]", "-o", temp_src, u]
-                    await asyncio.to_thread(subprocess.run, dl_fallback, capture_output=True, text=True)
+                try:
+                    temp_src = await asyncio.to_thread(
+                        narrator_engine.download_source_clip,
+                        u,
+                        temp_src,
+                        30
+                    )
+                except Exception as dl_err:
+                    await status_msg.edit(content=f"❌ **Failed to download video:** {dl_err}")
+                    return
                 res = await asyncio.to_thread(
                     narrator_engine.render_mascot_commentary_short,
                     clip_path=temp_src,
